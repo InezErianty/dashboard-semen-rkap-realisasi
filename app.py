@@ -21,7 +21,25 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-DATA_DEFAULT = Path(__file__).parent / "data" / "RKAP_Realisasi_Semen_2023.xlsx"
+def temukan_data() -> Path:
+    """Cari file Excel data, baik di folder data/ maupun langsung di root repo."""
+    here = Path(__file__).parent
+    kandidat = [
+        here / "data" / "RKAP_Realisasi_Semen_2023.xlsx",
+        here / "RKAP_Realisasi_Semen_2023.xlsx",
+    ]
+    for p in kandidat:
+        if p.exists():
+            return p
+    for folder in (here / "data", here):
+        if folder.exists():
+            hits = sorted(folder.glob("*.xlsx"))
+            if hits:
+                return hits[0]
+    return kandidat[0]  # biar pesan error tetap jelas bila benar benar tidak ada
+
+
+DATA_DEFAULT = temukan_data()
 
 # Palet warna konsisten per tipe semen (lolos validasi colorblind-safe)
 WARNA_TIPE = {
