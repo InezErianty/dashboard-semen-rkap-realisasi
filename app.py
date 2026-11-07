@@ -20,9 +20,9 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing, Holt
 # ----------------------------------------------------------------------
 st.set_page_config(
     page_title="Dashboard RKAP vs Realisasi Semen",
-    page_icon="bar_chart",
+    page_icon=":bar_chart:",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 def temukan_data() -> Path:
@@ -82,60 +82,87 @@ def pasang_gaya():
     st.markdown(
         """
         <style>
+        :root { color-scheme: light; }
+
         [data-testid="stAppViewContainer"] {
-            background: linear-gradient(170deg, #fff4cf 0%, #fdeaef 48%, #e8f1fc 100%);
+            background:
+                radial-gradient(1200px 520px at 10% -8%, #fff2d2 0%, rgba(255,242,210,0) 60%),
+                radial-gradient(1000px 520px at 100% 0%, #e9f1fb 0%, rgba(233,241,251,0) 55%),
+                linear-gradient(180deg, #faf9f6 0%, #f3f5f9 100%);
             background-attachment: fixed;
         }
         [data-testid="stHeader"] { background: transparent; }
-        .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1400px; }
-        footer { visibility: hidden; }
+        footer, #MainMenu { visibility: hidden; }
+        .block-container { padding: 1.4rem 1.3rem 3rem; max-width: 1320px; }
+        * { font-feature-settings: "tnum" 1; }
+        h1, h2, h3, h4 { color: #1f2430; letter-spacing: -0.01em; }
 
         .hero {
-            background: linear-gradient(100deg, #ffd24d 0%, #ffb347 52%, #ff8f5e 100%);
-            border-radius: 18px;
-            padding: 24px 28px;
-            margin-bottom: 20px;
-            box-shadow: 0 6px 20px rgba(237,161,0,0.28);
+            position: relative; overflow: hidden;
+            background: linear-gradient(120deg, #ffd24a 0%, #ffab3f 50%, #ff8a5c 100%);
+            border-radius: 22px; padding: 26px 30px; margin-bottom: 22px;
+            box-shadow: 0 14px 34px rgba(237,161,0,0.30);
         }
-        .hero h1 { font-size: 1.75rem; margin: 0 0 4px 0; color: #3a2600; }
-        .hero p  { margin: 0; color: #5c3d00; font-size: 0.95rem; }
+        .hero::after {
+            content: ""; position: absolute; right: -40px; top: -60px;
+            width: 220px; height: 220px; border-radius: 50%;
+            background: rgba(255,255,255,0.18);
+        }
+        .hero-badge {
+            display: inline-block; background: rgba(255,255,255,0.30); color: #3a2600;
+            font-size: 0.72rem; font-weight: 600; letter-spacing: 0.03em;
+            padding: 4px 12px; border-radius: 999px; margin-bottom: 10px;
+        }
+        .hero h1 { font-size: clamp(1.35rem, 4.6vw, 1.95rem); margin: 0 0 6px 0; color: #3a2600; line-height: 1.18; }
+        .hero p  { margin: 0; color: #5c3d00; font-size: clamp(0.82rem, 2.6vw, 0.96rem); }
 
         [data-testid="stMetric"] {
-            background: #ffffff;
-            border: 1px solid #eee7cf;
-            border-left: 6px solid #eda100;
-            padding: 16px 18px;
-            border-radius: 14px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            transition: transform .12s ease, box-shadow .12s ease;
+            background: #ffffff; border: 1px solid #ecedf1; border-left: 6px solid #eda100;
+            padding: 18px 20px; border-radius: 16px;
+            box-shadow: 0 6px 18px rgba(31,50,80,0.08);
+            transition: transform .15s ease, box-shadow .15s ease;
         }
         [data-testid="stMetric"]:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(0,0,0,0.10);
+            transform: translateY(-3px); box-shadow: 0 12px 26px rgba(31,50,80,0.13);
         }
         div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(1) [data-testid="stMetric"] { border-left-color: #eda100; }
         div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(2) [data-testid="stMetric"] { border-left-color: #2a78d6; }
         div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(3) [data-testid="stMetric"] { border-left-color: #1baf7a; }
         div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(4) [data-testid="stMetric"] { border-left-color: #eb6834; }
-        [data-testid="stMetricLabel"] p { font-size: 0.82rem; color: #7a7a7a; }
-        [data-testid="stMetricValue"] { font-size: 1.5rem; font-weight: 700; }
+        [data-testid="stMetricLabel"] p { font-size: 0.8rem; color: #6b7280; font-weight: 500; }
+        [data-testid="stMetricValue"] { font-size: clamp(1.15rem, 3.4vw, 1.55rem); font-weight: 700; color: #1f2430; }
 
-        [data-testid="stSidebar"] { background: #fffaf0; border-right: 1px solid #f0e6c4; }
+        [data-testid="stSidebar"] { background: #ffffff; border-right: 1px solid #ecedf1; }
+        [data-testid="stSidebar"] h2 { font-size: 1.05rem; }
 
         div[data-testid="stVerticalBlockBorderWrapper"] {
-            background: #ffffff;
-            border-radius: 14px;
-            box-shadow: 0 2px 12px rgba(31,50,80,0.06);
+            background: #ffffff; border: 1px solid #edeef2; border-radius: 18px;
+            box-shadow: 0 6px 20px rgba(31,50,80,0.07); padding: 8px 12px;
         }
 
-        .stTabs [data-baseweb="tab-list"] { gap: 6px; }
-        .stTabs [data-baseweb="tab"] {
-            border-radius: 10px 10px 0 0;
-            padding: 6px 18px;
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 4px; flex-wrap: wrap; background: #ffffff; border: 1px solid #ecedf1;
+            padding: 6px; border-radius: 14px; box-shadow: 0 4px 14px rgba(31,50,80,0.05);
         }
+        .stTabs [data-baseweb="tab"] { border-radius: 10px; padding: 7px 16px; color: #5b6472; }
+        .stTabs [data-baseweb="tab"]:hover { background: #faf6ea; }
         .stTabs [aria-selected="true"] {
-            background: #fff1cc;
-            border-bottom: 3px solid #eda100;
+            background: linear-gradient(120deg, #ffd24a, #ffb347); color: #3a2600 !important;
+            font-weight: 600; box-shadow: 0 3px 10px rgba(237,161,0,0.28);
+        }
+        .stTabs [data-baseweb="tab-highlight"] { background: transparent; }
+
+        .stDownloadButton button, .stButton button {
+            border-radius: 10px; border: 1px solid #e7cf8f; background: #fff8e8;
+            color: #3a2600; font-weight: 600;
+        }
+        .stDownloadButton button:hover, .stButton button:hover { background: #ffefc4; border-color: #eda100; }
+
+        @media (max-width: 640px) {
+            .block-container { padding: 1rem 0.8rem 2rem; }
+            .hero { padding: 20px 18px; border-radius: 18px; }
+            [data-testid="stMetric"] { padding: 14px 16px; }
+            div[data-testid="stVerticalBlockBorderWrapper"] { padding: 4px 6px; }
         }
         </style>
         """,
@@ -416,8 +443,9 @@ pasang_gaya()
 st.markdown(
     """
     <div class="hero">
+      <span class="hero-badge">PT SEMEN INDONESIA (PERSERO) TBK</span>
       <h1>Dashboard RKAP vs Realisasi Semen</h1>
-      <p>PT Semen Indonesia (Persero) Tbk &nbsp;.&nbsp; Tahun 2023 &nbsp;.&nbsp; satuan ton</p>
+      <p>Monitoring produksi dan rilis semen &nbsp;.&nbsp; Tahun 2023 &nbsp;.&nbsp; satuan ton</p>
     </div>
     """,
     unsafe_allow_html=True,
