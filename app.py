@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Dashboard RKAP vs Realisasi Semen - PT Semen Indonesia
+Dashboard RKAP vs Realisasi Semen - PT Semen Indonesia (Persero) Tbk.
 Perbandingan target (RKAP) dan aktual (Realisasi) untuk Produksi dan Rilis
 per tipe semen, per bulan, hingga level Plant dan Finish Mill.
 """
@@ -82,7 +82,11 @@ def pasang_gaya():
     st.markdown(
         """
         <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         :root { color-scheme: light; }
+        html, body, [data-testid="stAppViewContainer"], [class*="css"] {
+            font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
 
         [data-testid="stAppViewContainer"] {
             background:
@@ -158,7 +162,42 @@ def pasang_gaya():
         }
         .stDownloadButton button:hover, .stButton button:hover { background: #ffefc4; border-color: #eda100; }
 
+        /* Kartu KPI custom */
+        .kpi-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 16px; margin: 4px 0 8px;
+        }
+        .kpi-card {
+            position: relative; background: #ffffff; border: 1px solid #ecedf1;
+            border-radius: 18px; padding: 18px 20px;
+            box-shadow: 0 6px 20px rgba(31,50,80,0.07);
+            transition: transform .16s ease, box-shadow .16s ease;
+        }
+        .kpi-card:hover { transform: translateY(-4px); box-shadow: 0 14px 30px rgba(31,50,80,0.14); }
+        .kpi-card::before {
+            content: ""; position: absolute; left: 0; top: 16px; bottom: 16px;
+            width: 5px; border-radius: 0 6px 6px 0; background: var(--c, #eda100);
+        }
+        .kpi-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .kpi-ic {
+            width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center;
+            background: var(--cbg, #fff3d6); color: var(--c, #eda100); flex: none;
+        }
+        .kpi-ic { font-size: 18px; font-weight: 800; line-height: 1; }
+        .kpi-label { font-size: 0.78rem; color: #6b7280; font-weight: 600; line-height: 1.2; }
+        .kpi-value { font-size: clamp(1.25rem, 3vw, 1.7rem); font-weight: 800; color: #1f2430; letter-spacing: -0.02em; }
+        .kpi-unit { font-size: 0.8rem; font-weight: 600; color: #9aa1ac; }
+        .kpi-sub { margin-top: 8px; font-size: 0.76rem; color: #8b92a0; }
+        .kpi-chip {
+            display: inline-block; margin-top: 8px; font-size: 0.74rem; font-weight: 700;
+            padding: 3px 10px; border-radius: 999px;
+        }
+        .chip-up { background: #e6f5ee; color: #0f7a53; }
+        .chip-down { background: #fdeceb; color: #c0392b; }
+
+        @media (max-width: 980px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 640px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
             .block-container { padding: 1rem 0.8rem 2rem; }
             .hero { padding: 20px 18px; border-radius: 18px; }
             [data-testid="stMetric"] { padding: 14px 16px; }
@@ -494,11 +533,47 @@ total_real = real["Nilai"].sum()
 pencapaian = (total_real / total_rkap * 100) if total_rkap else 0.0
 selisih = total_real - total_rkap
 
-k1, k2, k3, k4 = st.columns(4)
-k1.metric("Total RKAP (Target)", f"{total_rkap:,.0f} ton")
-k2.metric("Total Realisasi", f"{total_real:,.0f} ton")
-k3.metric("Pencapaian", f"{pencapaian:,.1f}%", delta=f"{pencapaian - 100:,.1f}% vs target")
-k4.metric("Selisih", f"{selisih:,.0f} ton")
+def _fmt(v):
+    return f"{v:,.0f}".replace(",", ".")
+
+
+def _pct(v):
+    return f"{v:.1f}".replace(".", ",")
+
+
+_pen_up = pencapaian >= 100
+_sel_up = selisih >= 0
+_chip_pen = "chip-up" if _pen_up else "chip-down"
+_chip_sel = "chip-up" if _sel_up else "chip-down"
+_delta_txt = f"{'+' if pencapaian - 100 >= 0 else ''}{_pct(pencapaian - 100)}% vs target"
+
+st.markdown(
+    f"""
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--c:#eda100;--cbg:#fff3d6;">
+        <div class="kpi-head"><span class="kpi-ic">&#9678;</span><span class="kpi-label">TOTAL RKAP<br>Target</span></div>
+        <div class="kpi-value">{_fmt(total_rkap)} <span class="kpi-unit">ton</span></div>
+        <div class="kpi-sub">Target {parameter.lower()} tahun 2023</div>
+      </div>
+      <div class="kpi-card" style="--c:#2a78d6;--cbg:#e4effb;">
+        <div class="kpi-head"><span class="kpi-ic">&#9638;</span><span class="kpi-label">TOTAL REALISASI<br>Aktual</span></div>
+        <div class="kpi-value">{_fmt(total_real)} <span class="kpi-unit">ton</span></div>
+        <div class="kpi-sub">Capaian {parameter.lower()} aktual</div>
+      </div>
+      <div class="kpi-card" style="--c:#1baf7a;--cbg:#e3f5ee;">
+        <div class="kpi-head"><span class="kpi-ic">&#10003;</span><span class="kpi-label">PENCAPAIAN<br>vs Target</span></div>
+        <div class="kpi-value">{_pct(pencapaian)}<span class="kpi-unit">%</span></div>
+        <div><span class="kpi-chip {_chip_pen}">{_delta_txt}</span></div>
+      </div>
+      <div class="kpi-card" style="--c:#eb6834;--cbg:#fdeae0;">
+        <div class="kpi-head"><span class="kpi-ic">&#8645;</span><span class="kpi-label">SELISIH<br>Realisasi - RKAP</span></div>
+        <div class="kpi-value">{'+' if _sel_up else '-'}{_fmt(abs(selisih))} <span class="kpi-unit">ton</span></div>
+        <div><span class="kpi-chip {_chip_sel}">{'surplus' if _sel_up else 'di bawah target'}</span></div>
+      </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.write("")
 
