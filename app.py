@@ -195,6 +195,13 @@ def pasang_gaya():
         .chip-up { background: #e6f5ee; color: #0f7a53; }
         .chip-down { background: #fdeceb; color: #c0392b; }
 
+        .explain {
+            background: #f4f8fd; border: 1px solid #dceaf8; border-left: 4px solid #2a78d6;
+            border-radius: 12px; padding: 12px 16px; margin: 2px 0 12px;
+        }
+        .explain-title { display: block; font-weight: 700; color: #1f2430; font-size: 0.86rem; margin-bottom: 3px; }
+        .explain-body { display: block; color: #4b5563; font-size: 0.82rem; line-height: 1.5; }
+
         @media (max-width: 980px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 640px) {
             .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -653,6 +660,21 @@ with tab5:
     ]
     opsi_seri = ["Total (tipe terpilih)"] + [t for t in URUTAN_TIPE if t in tipe_pilih]
 
+    penjelasan_metode = {
+        "Moving Average": "Rata-rata bergerak. Memperkirakan bulan berikutnya dari rata-rata "
+        "beberapa bulan terakhir. Paling sederhana dan mudah dipahami, cocok saat data cenderung "
+        "stabil, namun kurang tanggap bila arah data berubah.",
+        "Exponential Smoothing (Holt)": "Pemulusan yang memberi bobot lebih besar pada data terbaru "
+        "dan menangkap arah tren naik atau turun. Cocok saat data punya kecenderungan naik atau "
+        "turun yang jelas, tanpa pola musiman.",
+        "Holt-Winters": "Pengembangan dari Holt yang juga menangkap pola musiman berulang, misalnya "
+        "selalu naik pada periode tertentu. Cocok bila ada pola teratur, dan idealnya butuh data "
+        "beberapa tahun.",
+        "ARIMA": "Metode statistik yang mempelajari hubungan nilai sekarang dengan nilai dan "
+        "kesalahan sebelumnya. Fleksibel dan umum dipakai untuk peramalan, cocok untuk pola yang "
+        "lebih rumit, namun perlu data cukup dan lebih sulit diatur.",
+    }
+
     cfa, cfb, cfc = st.columns(3)
     with cfa:
         seri = st.selectbox("Seri yang diramal", opsi_seri)
@@ -660,9 +682,17 @@ with tab5:
         metode = st.selectbox(
             "Metode",
             ["Moving Average", "Exponential Smoothing (Holt)", "Holt-Winters", "ARIMA"],
+            help="Pilih metode peramalan. Penjelasan singkatnya muncul di bawah.",
         )
     with cfc:
-        h = st.slider("Horizon (bulan ke depan)", 1, 12, 6)
+        h = st.slider("Horizon (bulan ke depan)", 1, 12, 6,
+                      help="Berapa bulan ke depan yang ingin diramalkan.")
+
+    st.markdown(
+        f'<div class="explain"><span class="explain-title">Tentang metode: {metode}</span>'
+        f'<span class="explain-body">{penjelasan_metode[metode]}</span></div>',
+        unsafe_allow_html=True,
+    )
 
     kw = {}
     if metode == "Moving Average":
@@ -698,10 +728,16 @@ with tab5:
 
         m1, m2, m3 = st.columns(3)
         m1.metric("MAPE in-sample",
-                  f"{r['mape']:.1f}%" if r["mape"] == r["mape"] else "n/a")
+                  f"{r['mape']:.1f}%" if r["mape"] == r["mape"] else "n/a",
+                  help="Mean Absolute Percentage Error: rata-rata persentase meleset ramalan "
+                       "dari kenyataan. Semakin kecil semakin akurat. Contoh 10 persen berarti "
+                       "rata-rata meleset sekitar 10 persen.")
         m2.metric("RMSE in-sample",
-                  f"{r['rmse']:,.0f} ton" if r["rmse"] == r["rmse"] else "n/a")
-        m3.metric("Rata-rata ramalan", f"{np.mean(r['fc']):,.0f} ton")
+                  f"{r['rmse']:,.0f} ton" if r["rmse"] == r["rmse"] else "n/a",
+                  help="Root Mean Square Error: besar rata-rata kesalahan ramalan dalam satuan ton. "
+                       "Semakin kecil semakin baik, dan kesalahan besar lebih dihukum.")
+        m3.metric("Rata-rata ramalan", f"{np.mean(r['fc']):,.0f} ton",
+                  help="Rata-rata nilai hasil ramalan sepanjang horizon yang dipilih.")
 
         with st.container(border=True):
             st.plotly_chart(
@@ -723,6 +759,38 @@ with tab5:
         )
         st.info("Data hanya 12 bulan, sehingga hasil peramalan bersifat indikatif. "
                 "Holt-Winters musiman penuh (periode 12 bulan) membutuhkan minimal 24 bulan data.")
+
+    with st.expander("Penjelasan istilah statistik (klik untuk membuka)"):
+        st.markdown(
+            """
+**Moving Average (Rata-rata Bergerak)**
+Memperkirakan nilai bulan berikutnya dari rata-rata beberapa bulan terakhir. Metode paling sederhana. Cocok untuk data yang cenderung stabil.
+
+**Exponential Smoothing (Holt)**
+Pemulusan yang memberi bobot lebih besar pada data terbaru sekaligus menangkap arah tren. Cocok untuk data yang punya kecenderungan naik atau turun.
+
+**Holt-Winters**
+Pengembangan Holt yang menambahkan pola musiman berulang. Cocok bila ada pola teratur, dan butuh data yang cukup panjang.
+
+**ARIMA**
+Metode statistik yang mempelajari hubungan nilai saat ini dengan nilai dan kesalahan sebelumnya. Fleksibel untuk pola yang lebih rumit.
+
+**MAPE (Mean Absolute Percentage Error)**
+Rata-rata persentase meleset ramalan dari kenyataan. Semakin kecil semakin akurat.
+
+**RMSE (Root Mean Square Error)**
+Besar rata-rata kesalahan ramalan dalam satuan ton. Semakin kecil semakin baik.
+
+**Horizon**
+Jumlah bulan ke depan yang diramalkan.
+
+**Interval 95 persen**
+Rentang yang kemungkinan besar memuat nilai sebenarnya. Semakin lebar, semakin besar ketidakpastiannya.
+
+**RKAP dan Realisasi**
+RKAP adalah target atau rencana, sedangkan Realisasi adalah capaian aktual di lapangan.
+"""
+        )
 
 with tab4:
     tampil = d.copy()
