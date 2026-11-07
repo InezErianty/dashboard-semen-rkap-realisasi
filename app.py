@@ -68,10 +68,9 @@ LAYOUT_DASAR = dict(
     font=dict(family="Segoe UI, Arial, sans-serif", size=13, color="#2b2b2b"),
     plot_bgcolor="rgba(0,0,0,0)",
     paper_bgcolor="rgba(0,0,0,0)",
-    margin=dict(l=10, r=10, t=54, b=72),
+    margin=dict(l=10, r=10, t=58, b=86),
     hoverlabel=dict(font_size=12),
-    legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="left", x=0),
-    title=dict(x=0, xanchor="left", font=dict(size=15)),
+    legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0),
 )
 PLOTLY_CONFIG = {"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]}
 
