@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Dashboard RKAP vs Realisasi Semen - PT Semen Indonesia (Persero) Tbk.
+Dashboard RKAP vs Realisasi Semen - PT Semen Indonesia
 Perbandingan target (RKAP) dan aktual (Realisasi) untuk Produksi dan Rilis
 per tipe semen, per bulan, hingga level Plant dan Finish Mill.
 """
@@ -12,8 +12,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.holtwinters import ExponentialSmoothing, Holt
+from forecast import render_peramalan
 
 # ----------------------------------------------------------------------
 # Konfigurasi halaman
@@ -369,119 +368,6 @@ def grafik_fm(df_fm):
 
 
 # ----------------------------------------------------------------------
-# Peramalan (forecasting)
-# ----------------------------------------------------------------------
-def _mape(a, f):
-    a, f = np.asarray(a, float), np.asarray(f, float)
-    m = a != 0
-    return float(np.mean(np.abs((a[m] - f[m]) / a[m])) * 100) if m.any() else float("nan")
-
-
-def _rmse(a, f):
-    a, f = np.asarray(a, float), np.asarray(f, float)
-    return float(np.sqrt(np.mean((a - f) ** 2)))
-
-
-def ramal(y, metode, h, **kw):
-    """Hasilkan dict: fitted, fc (ramalan), lo, hi (interval), mape, rmse, catatan."""
-    y = np.asarray(y, float)
-    lo = hi = None
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        if metode == "Moving Average":
-            w = int(kw.get("window", 3))
-            fitted = pd.Series(y).rolling(w).mean().to_numpy()
-            fc = np.repeat(float(np.mean(y[-w:])), h)
-            catatan = (f"Rata-rata bergerak (moving average) jendela {w} bulan. "
-                       f"Ramalan ditahan datar pada rata-rata {w} bulan terakhir.")
-        elif metode == "Exponential Smoothing (Holt)":
-            damped = bool(kw.get("damped", False))
-            model = Holt(y, damped_trend=damped, initialization_method="estimated").fit()
-            fitted = np.asarray(model.fittedvalues)
-            fc = np.asarray(model.forecast(h))
-            catatan = "Holt (pemulusan eksponensial dengan tren)" + (
-                ", tren teredam." if damped else ".")
-        elif metode == "Holt-Winters":
-            p = int(kw.get("periods", 4))
-            if len(y) < 2 * p:
-                raise ValueError(
-                    f"Holt-Winters musiman periode {p} butuh minimal {2 * p} titik, "
-                    f"data hanya {len(y)} bulan.")
-            model = ExponentialSmoothing(
-                y, trend="add", seasonal="add", seasonal_periods=p,
-                initialization_method="estimated").fit()
-            fitted = np.asarray(model.fittedvalues)
-            fc = np.asarray(model.forecast(h))
-            catatan = f"Holt-Winters aditif dengan periode musiman {p} bulan."
-        elif metode == "ARIMA":
-            order = kw.get("order")
-            if order is None:
-                best = None
-                for pp in range(3):
-                    for dd in range(2):
-                        for qq in range(3):
-                            try:
-                                m = ARIMA(y, order=(pp, dd, qq)).fit()
-                                if best is None or m.aic < best[1]:
-                                    best = ((pp, dd, qq), m.aic, m)
-                            except Exception:  # noqa: BLE001
-                                pass
-                order, _, model = best
-            else:
-                model = ARIMA(y, order=order).fit()
-            fitted = np.asarray(model.fittedvalues)
-            res = model.get_forecast(h)
-            fc = np.asarray(res.predicted_mean)
-            ci = np.asarray(res.conf_int(alpha=0.05))
-            lo, hi = ci[:, 0], ci[:, 1]
-            catatan = f"ARIMA order {tuple(order)} (dipilih berdasarkan AIC bila otomatis)."
-        else:
-            raise ValueError("Metode tidak dikenal.")
-
-    mask = ~np.isnan(fitted)
-    mask[:1] = False  # abaikan titik awal (inisialisasi) saat menghitung galat
-    mp = _mape(y[mask], fitted[mask]) if mask.any() else float("nan")
-    rm = _rmse(y[mask], fitted[mask]) if mask.any() else float("nan")
-    return dict(fitted=fitted, fc=fc, lo=lo, hi=hi, mape=mp, rmse=rm, catatan=catatan)
-
-
-def label_bulan_lanjut(h):
-    """Label bulan untuk horizon ramalan, lanjut dari Des 2023."""
-    return [f"{BULAN_URUT[j % 12]} '{24 + j // 12:02d}" for j in range(h)]
-
-
-def grafik_ramal(hist_labels, y, fc_labels, fc, lo, hi, warna, judul):
-    fig = go.Figure()
-    fig.add_scatter(
-        x=hist_labels, y=y, name="Historis", mode="lines+markers",
-        line=dict(color=warna, width=2),
-        marker=dict(size=7, line=dict(width=1, color="#fcfcfb")),
-        hovertemplate="%{x}<br>%{y:,.0f} ton<extra></extra>",
-    )
-    x_fc = [hist_labels[-1]] + list(fc_labels)
-    y_fc = [y[-1]] + list(fc)
-    fig.add_scatter(
-        x=x_fc, y=y_fc, name="Ramalan", mode="lines+markers",
-        line=dict(color="#e34948", width=2, dash="dash"),
-        marker=dict(size=7, line=dict(width=1, color="#fcfcfb")),
-        hovertemplate="%{x}<br>%{y:,.0f} ton<extra></extra>",
-    )
-    if lo is not None:
-        fig.add_scatter(
-            x=list(fc_labels) + list(fc_labels)[::-1],
-            y=list(hi) + list(lo)[::-1],
-            fill="toself", fillcolor="rgba(227,73,72,0.12)",
-            line=dict(width=0), name="Interval 95%", hoverinfo="skip",
-        )
-    fig.update_layout(
-        **LAYOUT_DASAR, title=judul,
-        xaxis=dict(title=None),
-        yaxis=dict(title=None, gridcolor="#ececec", zeroline=False),
-    )
-    return fig
-
-
-# ----------------------------------------------------------------------
 # Antarmuka
 # ----------------------------------------------------------------------
 pasang_gaya()
@@ -650,147 +536,7 @@ with tab3:
                                     use_container_width=True, config=PLOTLY_CONFIG)
 
 with tab5:
-    st.caption("Peramalan memakai seluruh 12 bulan data Realisasi untuk parameter terpilih "
-               "(mengabaikan filter Rentang Bulan).")
-
-    base_fc = data[
-        data["Source"].eq("Realisasi")
-        & data["Parameter"].eq(parameter)
-        & data["Tipe Semen"].isin(tipe_pilih)
-    ]
-    opsi_seri = ["Total (tipe terpilih)"] + [t for t in URUTAN_TIPE if t in tipe_pilih]
-
-    penjelasan_metode = {
-        "Moving Average": "Rata-rata bergerak. Memperkirakan bulan berikutnya dari rata-rata "
-        "beberapa bulan terakhir. Paling sederhana dan mudah dipahami, cocok saat data cenderung "
-        "stabil, namun kurang tanggap bila arah data berubah.",
-        "Exponential Smoothing (Holt)": "Pemulusan yang memberi bobot lebih besar pada data terbaru "
-        "dan menangkap arah tren naik atau turun. Cocok saat data punya kecenderungan naik atau "
-        "turun yang jelas, tanpa pola musiman.",
-        "Holt-Winters": "Pengembangan dari Holt yang juga menangkap pola musiman berulang, misalnya "
-        "selalu naik pada periode tertentu. Cocok bila ada pola teratur, dan idealnya butuh data "
-        "beberapa tahun.",
-        "ARIMA": "Metode statistik yang mempelajari hubungan nilai sekarang dengan nilai dan "
-        "kesalahan sebelumnya. Fleksibel dan umum dipakai untuk peramalan, cocok untuk pola yang "
-        "lebih rumit, namun perlu data cukup dan lebih sulit diatur.",
-    }
-
-    cfa, cfb, cfc = st.columns(3)
-    with cfa:
-        seri = st.selectbox("Seri yang diramal", opsi_seri)
-    with cfb:
-        metode = st.selectbox(
-            "Metode",
-            ["Moving Average", "Exponential Smoothing (Holt)", "Holt-Winters", "ARIMA"],
-            help="Pilih metode peramalan. Penjelasan singkatnya muncul di bawah.",
-        )
-    with cfc:
-        h = st.slider("Horizon (bulan ke depan)", 1, 12, 6,
-                      help="Berapa bulan ke depan yang ingin diramalkan.")
-
-    st.markdown(
-        f'<div class="explain"><span class="explain-title">Tentang metode: {metode}</span>'
-        f'<span class="explain-body">{penjelasan_metode[metode]}</span></div>',
-        unsafe_allow_html=True,
-    )
-
-    kw = {}
-    if metode == "Moving Average":
-        kw["window"] = st.slider("Jendela MA (bulan)", 2, 6, 3)
-    elif metode == "Exponential Smoothing (Holt)":
-        kw["damped"] = st.checkbox("Tren teredam (damped)")
-    elif metode == "Holt-Winters":
-        kw["periods"] = st.select_slider("Periode musiman (bulan)", options=[3, 4, 6], value=4)
-    elif metode == "ARIMA":
-        auto = st.checkbox("Cari order otomatis (AIC terbaik)", value=True)
-        if not auto:
-            cp, cd, cq = st.columns(3)
-            pp = cp.number_input("p (AR)", 0, 5, 1)
-            dd = cd.number_input("d (diff)", 0, 2, 1)
-            qq = cq.number_input("q (MA)", 0, 5, 0)
-            kw["order"] = (int(pp), int(dd), int(qq))
-
-    if seri == "Total (tipe terpilih)":
-        s = base_fc.groupby("NoBulan")["Nilai"].sum()
-        warna_seri = WARNA_REAL
-    else:
-        s = base_fc[base_fc["Tipe Semen"].eq(seri)].groupby("NoBulan")["Nilai"].sum()
-        warna_seri = WARNA_TIPE.get(seri, WARNA_REAL)
-    y = s.reindex(range(1, 13), fill_value=0).to_numpy(float)
-
-    try:
-        r = ramal(y, metode, h, **kw)
-    except Exception as e:  # noqa: BLE001
-        st.warning(f"Metode ini belum bisa dijalankan pada data saat ini. {e}")
-    else:
-        hist_labels = [f"{m} '23" for m in BULAN_URUT]
-        fc_labels = label_bulan_lanjut(h)
-
-        m1, m2, m3 = st.columns(3)
-        m1.metric("MAPE in-sample",
-                  f"{r['mape']:.1f}%" if r["mape"] == r["mape"] else "n/a",
-                  help="Mean Absolute Percentage Error: rata-rata persentase meleset ramalan "
-                       "dari kenyataan. Semakin kecil semakin akurat. Contoh 10 persen berarti "
-                       "rata-rata meleset sekitar 10 persen.")
-        m2.metric("RMSE in-sample",
-                  f"{r['rmse']:,.0f} ton" if r["rmse"] == r["rmse"] else "n/a",
-                  help="Root Mean Square Error: besar rata-rata kesalahan ramalan dalam satuan ton. "
-                       "Semakin kecil semakin baik, dan kesalahan besar lebih dihukum.")
-        m3.metric("Rata-rata ramalan", f"{np.mean(r['fc']):,.0f} ton",
-                  help="Rata-rata nilai hasil ramalan sepanjang horizon yang dipilih.")
-
-        with st.container(border=True):
-            st.plotly_chart(
-                grafik_ramal(hist_labels, y, fc_labels, r["fc"], r["lo"], r["hi"],
-                             warna_seri, f"Peramalan {seri} - {parameter} ({metode})"),
-                use_container_width=True, config=PLOTLY_CONFIG,
-            )
-        st.caption(r["catatan"])
-
-        tbl = pd.DataFrame({"Bulan": fc_labels,
-                            "Ramalan (ton)": np.round(r["fc"]).astype(int)})
-        if r["lo"] is not None:
-            tbl["Batas bawah 95%"] = np.round(r["lo"]).astype(int)
-            tbl["Batas atas 95%"] = np.round(r["hi"]).astype(int)
-        st.dataframe(tbl, use_container_width=True, hide_index=True)
-        st.download_button(
-            "Unduh ramalan (CSV)", tbl.to_csv(index=False).encode("utf-8"),
-            file_name="ramalan.csv", mime="text/csv",
-        )
-        st.info("Data hanya 12 bulan, sehingga hasil peramalan bersifat indikatif. "
-                "Holt-Winters musiman penuh (periode 12 bulan) membutuhkan minimal 24 bulan data.")
-
-    with st.expander("Penjelasan istilah statistik (klik untuk membuka)"):
-        st.markdown(
-            """
-**Moving Average (Rata-rata Bergerak)**
-Memperkirakan nilai bulan berikutnya dari rata-rata beberapa bulan terakhir. Metode paling sederhana. Cocok untuk data yang cenderung stabil.
-
-**Exponential Smoothing (Holt)**
-Pemulusan yang memberi bobot lebih besar pada data terbaru sekaligus menangkap arah tren. Cocok untuk data yang punya kecenderungan naik atau turun.
-
-**Holt-Winters**
-Pengembangan Holt yang menambahkan pola musiman berulang. Cocok bila ada pola teratur, dan butuh data yang cukup panjang.
-
-**ARIMA**
-Metode statistik yang mempelajari hubungan nilai saat ini dengan nilai dan kesalahan sebelumnya. Fleksibel untuk pola yang lebih rumit.
-
-**MAPE (Mean Absolute Percentage Error)**
-Rata-rata persentase meleset ramalan dari kenyataan. Semakin kecil semakin akurat.
-
-**RMSE (Root Mean Square Error)**
-Besar rata-rata kesalahan ramalan dalam satuan ton. Semakin kecil semakin baik.
-
-**Horizon**
-Jumlah bulan ke depan yang diramalkan.
-
-**Interval 95 persen**
-Rentang yang kemungkinan besar memuat nilai sebenarnya. Semakin lebar, semakin besar ketidakpastiannya.
-
-**RKAP dan Realisasi**
-RKAP adalah target atau rencana, sedangkan Realisasi adalah capaian aktual di lapangan.
-"""
-        )
+    render_peramalan(data)
 
 with tab4:
     tampil = d.copy()
